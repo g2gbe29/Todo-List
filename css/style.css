@@ -94,10 +94,11 @@ input:not([type='checkbox']):not([type='submit']):not(.edit-input) {
   font-size: 1rem; min-height: 48px; transition: all 0.2s ease;
   -webkit-appearance: none; appearance: none;
 }
-.edit-input {
-  padding: 0.875rem 1rem; border: 1px solid var(--gray-600);
-  border-radius: var(--radius); background: var(--gray-900); color: var(--white);
-  font-size: 1rem; min-height: 44px; font-family: inherit;
+.edit-input, .edit-input-date {
+  width: 100%; max-width: 120px; padding: 0.75rem 0.5rem !important;
+  border: 1px solid var(--gray-600); border-radius: var(--radius);
+  background: var(--gray-900); color: var(--white); font-size: 0.9rem;
+  min-height: 40px; font-family: inherit; box-sizing: border-box;
   -webkit-appearance: none; appearance: none;
 }
 input:not([type='checkbox']):not([type='submit']):focus {
