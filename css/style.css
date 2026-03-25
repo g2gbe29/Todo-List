@@ -167,19 +167,23 @@ input[type='date']::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 .edit-input:focus { outline: none; border-color: var(--orange-500); box-shadow: 0 0 0 3px rgb(249 115 22 / 0.1); }
 
 /* Mobile First Responsive */
-@media (max-width: 640px) {
-  #todoApp { box-shadow: none; border-radius: 0; min-height: 100vh; }
-  .app-header { padding: 1.5rem 1rem 1.25rem; }
-  .list-controls { flex-direction: column; }
-  #listSelect, #newListName { min-width: auto; }
-  #todoForm { padding: 1.25rem; flex-direction: row; gap: 0.75rem; }
+@media (max-width: 480px) {
+  body { padding: 0.5rem; }
+  #todoApp { max-width: none; box-shadow: none; border-radius: 0; margin: 0; }
+  .app-header { padding: 1rem; }
+  .app-header h1 { font-size: 1.3rem; }
+  .list-controls { flex-direction: column; gap: 0.5rem; }
+  #listSelect, #newListName { padding: 0.875rem; font-size: 0.95rem; }
+  #todoForm { padding: 1rem; gap: 0.75rem; flex-direction: row; align-items: end; }
   #todoText { flex: 2; }
-  #todoDate { flex: 1.5; }
-  #todoForm button { flex: 1.5; white-space: nowrap; font-size: 0.95rem; padding: 1rem 1rem; }
-  #todoList { padding: 1rem; }
-  #todoList li { padding: 1rem; flex-direction: column; align-items: stretch; gap: 1rem; }
-  .todo-actions { width: 100%; justify-content: stretch; opacity: 1; }
-  .todo-actions button { flex: 1; height: 44px; }
+  #todoDate { flex: 1.3; }
+  #todoForm button { flex: 1.3; padding: 1rem 0.75rem; font-size: 0.9rem; }
+  #stats { padding: 1rem; }
+  .filters { padding: 0.75rem 1rem; gap: 0.25rem; }
+  .filters button { padding: 0.6rem 0.8rem; font-size: 0.8rem; }
+  #todoList { padding: 1rem 0.75rem; }
+  #todoList li { padding: 1rem 0.75rem; gap: 0.75rem; }
+  .todo-actions button { width: 36px; height: 36px; font-size: 0.9rem; }
 }
 
 @media (min-width: 641px) {
