@@ -60,7 +60,7 @@ body {
   width: 100%; box-sizing: border-box;
 }
 #listSelect, #newListName {
-  flex: 1; min-width: 0; padding: 0.875rem 1rem; max-width: 100%;
+  flex: none; min-width: 120px; max-width: 180px; padding: 0.875rem 1rem;
   border: 1px solid var(--gray-600); border-radius: var(--radius);
   background: var(--gray-900); color: var(--white); font-size: 0.95rem;
   transition: all 0.2s ease;
