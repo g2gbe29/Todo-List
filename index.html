@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="css/style.css">
+  <title>Todo Liste – Alle</title>
+</head>
+<body>
+
+<div id="todoApp" class="app todo-app">
+<div class="app-header">
+    <h1 id="listTitle">📝 Todo Liste – Standard</h1>
+    <div class="list-controls">
+      <select id="listSelect"></select>
+      <input id="newListName" placeholder="Neue Liste" maxlength="50">
+      <button id="createListBtn">Neue Liste</button>
+      <button id="deleteListBtn" class="delete">🗑️</button>
+    </div>
+  </div>
+
+  <form id="todoForm">
+    <input id="todoText" placeholder="Was ist zu tun?" required>
+    <input id="todoDate" type="date" required>
+    <button type="submit">Hinzufügen</button>
+  </form>
+
+  <div id="stats"></div>
+
+  <div class="filters">
+    <button id="filterAll" class="active">Alle</button>
+    <button id="filterToday">Heute</button>
+    <button id="filterCompleted">Erledigt</button>
+    <button id="filterPassive">Passiv</button>
+  </div>
+
+  <ul id="todoList"></ul>
+</div>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>
