@@ -1,3 +1,4 @@
+
 /* v3: Production-Ready Todo App – Clean Orange/Gray/Black Design */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
@@ -32,6 +33,7 @@ body {
   max-width: 550px;
   width: 100%;
   margin: 1rem auto;
+  border: 2px solid var(--gray-600);
   background: var(--gray-800); border-radius: 20px;
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   box-sizing: border-box;
@@ -39,8 +41,8 @@ body {
 
 @media (max-width: 640px) {
   #todoApp {
-    margin: 0; border-radius: 0; box-shadow: none;
-    max-width: 100%; width: 100%;
+    margin: 1rem; border-radius: 20px; box-shadow: var(--shadow-lg);
+    max-width: 550px; width: 100%;
   }
 }
 
