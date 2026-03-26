@@ -1,373 +1,618 @@
-const todoApp = document.getElementById("todoApp");
+const app = {
+  currentList: 'Standard',
+  lists: [],
+  todos: [],
+  currentFilter: 'all',
+  editingIndex: null,
+  isGlobalView: false,
+  globalViewType: null,
+  globalTodos: [],
+  globalTodoIndices: [],
 
-const list = document.getElementById("todoList");
-const form = document.getElementById("todoForm");
-const todoText = document.getElementById("todoText");
-const todoDate = document.getElementById("todoDate");
-const stats = document.getElementById("stats");
-const filterAll = document.getElementById("filterAll");
-const filterToday = document.getElementById("filterToday");
-const filterCompleted = document.getElementById("filterCompleted");
-const filterPassive = document.getElementById("filterPassive");
+  listIcons: {
+    'Standard': '📋',
+    'ToDo': '✓',
+    'Einkaufen': '🛒',
+    'Arbeit': '💼',
+    'Privat': '🏠',
+    'Familie': '👨‍👩‍',
+    'Schule': '📚',
+    'Sport': '⚽'
+  },
 
-let currentUser = 'guest';
-let currentList = 'Standard';
-let lists = [];
-let todos = [];
+  init() {
+    this.loadLists();
+    this.loadUserTodos();
+    this.setupEventListeners();
+    this.showDashboard();
+    
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('todoDate').value = today;
+  },
 
-function validateInput(text) {
-  if (typeof text !== "string") return "";
-  let cleaned = text.replace(/[<>"]/g, '');
-  cleaned = cleaned.replace(/[\\']/g, '');
-  return cleaned.trim().substring(0, 200);
-}
+  // XSS-Schutz: Entfernt verbotene Zeichen (<, >, &, |)
+  sanitizeInput(input) {
+    if (!input) return '';
+    return input.replace(/[<>&|]/g, '');
+  },
 
-function validateDate(date) {
-  if (typeof date !== "string") return "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return "";
-  const parsed = new Date(date);
-  if (isNaN(parsed.getTime())) return "";
-  return date;
-}
+  // Prüft ob Input verbotene Zeichen enthält
+  containsForbiddenChars(input) {
+    if (!input) return false;
+    return /[<>&|]/.test(input);
+  },
 
-function getTodosKey() {
-  return `todo_lists_${currentList}`;
-}
+  loadLists() {
+    const stored = localStorage.getItem('todo_lists_index');
+    this.lists = stored ? JSON.parse(stored) : ['Standard'];
+    if (!this.lists.includes('Standard')) this.lists.push('Standard');
+  },
 
-function getListsKey() {
-  return 'todo_lists_index';
-}
+  saveLists() {
+    localStorage.setItem('todo_lists_index', JSON.stringify(this.lists));
+  },
 
-function loadLists() {
-  try {
-    const stored = localStorage.getItem(getListsKey());
-    if (stored) {
-      lists = JSON.parse(stored);
+  loadUserTodos() {
+    const stored = localStorage.getItem(`todo_lists_${this.currentList}`);
+    this.todos = stored ? JSON.parse(stored) : [];
+  },
+
+  saveTodos() {
+    localStorage.setItem(`todo_lists_${this.currentList}`, JSON.stringify(this.todos));
+  },
+
+  createList(name) {
+    const cleanName = this.sanitizeInput(name.trim()).substring(0, 50);
+    if (cleanName && !this.lists.includes(cleanName)) {
+      this.lists.push(cleanName);
+      this.saveLists();
+      return true;
+    }
+    return false;
+  },
+
+  deleteList(name) {
+    const index = this.lists.indexOf(name);
+    if (index > -1 && this.lists.length > 1 && name !== 'Standard') {
+      this.lists.splice(index, 1);
+      if (this.currentList === name) this.currentList = this.lists[0];
+      this.saveLists();
+      localStorage.removeItem(`todo_lists_${name}`);
+      return true;
+    }
+    return false;
+  },
+
+  showDashboard() {
+    document.getElementById('dashboardView').style.display = 'block';
+    document.getElementById('listView').style.display = 'none';
+    this.isGlobalView = false;
+    this.globalViewType = null;
+    this.currentFilter = 'all';
+    this.showAllFilters();
+    this.updateDashboard();
+  },
+
+  showListView() {
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('listView').style.display = 'block';
+    document.getElementById('listTitle').textContent = this.currentList;
+    if (!this.isGlobalView) {
+      this.showAllFilters();
+      this.renderTodos();
+    }
+  },
+
+  showAllFilters() {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.style.display = 'block';
+    });
+  },
+
+  showSingleFilter(filterType) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      if (btn.dataset.filter === filterType) {
+        btn.style.display = 'block';
+        btn.classList.add('active');
+      } else {
+        btn.style.display = 'none';
+      }
+    });
+  },
+
+  getAllTodosFromAllLists() {
+    const allTodos = [];
+    const indices = [];
+    
+    this.lists.forEach(listName => {
+      const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${listName}`) || '[]');
+      listTodos.forEach((todo, index) => {
+        allTodos.push({ ...todo, listName: listName, originalIndex: index });
+        indices.push({ listName: listName, index: index });
+      });
+    });
+    
+    return { todos: allTodos, indices: indices };
+  },
+
+  showAllTodos() {
+    this.isGlobalView = true;
+    this.globalViewType = 'all';
+    this.currentFilter = 'all';
+    const { todos, indices } = this.getAllTodosFromAllLists();
+    this.globalTodos = todos.filter(t => !t.completed && !t.passive);
+    this.globalTodoIndices = indices.filter((_, i) => !todos[i].completed && !todos[i].passive);
+    document.getElementById('listTitle').textContent = 'Alle Aufgaben';
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('listView').style.display = 'block';
+    this.showSingleFilter('all');
+    this.renderGlobalTodos();
+  },
+
+  showTodayTodos() {
+    this.isGlobalView = true;
+    this.globalViewType = 'today';
+    this.currentFilter = 'today';
+    const today = new Date().toISOString().split('T')[0];
+    const { todos, indices } = this.getAllTodosFromAllLists();
+    this.globalTodos = todos.filter(t => t.date === today && !t.completed && !t.passive);
+    this.globalTodoIndices = indices.filter((_, i) => todos[i].date === today && !todos[i].completed && !todos[i].passive);
+    document.getElementById('listTitle').textContent = 'Heute fällig';
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('listView').style.display = 'block';
+    this.showSingleFilter('today');
+    this.renderGlobalTodos();
+  },
+
+  showCompletedTodos() {
+    this.isGlobalView = true;
+    this.globalViewType = 'completed';
+    this.currentFilter = 'completed';
+    const { todos, indices } = this.getAllTodosFromAllLists();
+    this.globalTodos = todos.filter(t => t.completed);
+    this.globalTodoIndices = indices.filter((_, i) => todos[i].completed);
+    document.getElementById('listTitle').textContent = 'Erledigt';
+    document.getElementById('dashboardView').style.display = 'none';
+    document.getElementById('listView').style.display = 'block';
+    this.showSingleFilter('completed');
+    this.renderGlobalTodos();
+  },
+
+  updateDashboard() {
+    const today = new Date().toISOString().split('T')[0];
+    let totalAlle = 0, totalHeute = 0, totalErledigt = 0;
+
+    this.lists.forEach(listName => {
+      const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${listName}`) || '[]');
+      totalAlle += listTodos.filter(t => !t.completed && !t.passive).length;
+      totalHeute += listTodos.filter(t => t.date === today && !t.completed && !t.passive).length;
+      totalErledigt += listTodos.filter(t => t.completed).length;
+    });
+
+    document.getElementById('countAlle').textContent = totalAlle;
+    document.getElementById('countHeute').textContent = totalHeute;
+    document.getElementById('countErledigt').textContent = totalErledigt;
+
+    this.renderListsGrid();
+  },
+
+  renderListsGrid() {
+    const grid = document.getElementById('listsGrid');
+    grid.innerHTML = '';
+    const today = new Date().toISOString().split('T')[0];
+
+    this.lists.forEach(listName => {
+      const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${listName}`) || '[]');
+      const count = listTodos.filter(t => !t.completed && !t.passive).length;
+      const todayCount = listTodos.filter(t => t.date === today && !t.completed && !t.passive).length;
+      const icon = this.listIcons[listName] || '📝';
+
+      const card = document.createElement('div');
+      card.className = 'list-card';
+      card.onclick = () => {
+        this.currentList = listName;
+        this.isGlobalView = false;
+        this.loadUserTodos();
+        this.showListView();
+      };
+
+      card.innerHTML = `
+        <div class="list-card-left">
+          <div class="list-icon">${icon}</div>
+          <span class="list-name">${this.sanitizeInput(listName)}</span>
+        </div>
+        <div class="list-card-right">
+          ${todayCount > 0 ? `<span class="today-count">${todayCount}</span>` : ''}
+          <span class="list-count">${count}</span>
+        </div>
+      `;
+
+      grid.appendChild(card);
+    });
+  },
+
+  renderTodos() {
+    const list = document.getElementById('todoList');
+    list.innerHTML = '';
+
+    let filtered = [...this.todos];
+    const today = new Date().toISOString().split('T')[0];
+
+    if (this.currentFilter === 'today') {
+      filtered = filtered.filter(t => t.date === today && !t.completed && !t.passive);
+    } else if (this.currentFilter === 'completed') {
+      filtered = filtered.filter(t => t.completed);
     } else {
-      lists = ['Standard'];
-      saveLists();
+      filtered = filtered.filter(t => !t.completed && !t.passive);
     }
-  } catch (e) {
-    console.error("Load lists failed:", e);
-    lists = ['Standard'];
-  }
-}
 
-function saveLists() {
-  try {
-    localStorage.setItem(getListsKey(), JSON.stringify(lists));
-  } catch (e) {
-    console.error("Save lists failed:", e);
-  }
-}
-
-function createList(name) {
-  const cleanName = validateInput(name).substring(0, 50);
-  if (cleanName && !lists.includes(cleanName)) {
-    lists.push(cleanName);
-    saveLists();
-    switchList(cleanName);
-    return true;
-  }
-  return false;
-}
-
-function deleteList(name) {
-  const index = lists.indexOf(name);
-  if (index > -1 && lists.length > 1) {
-    lists.splice(index, 1);
-    if (currentList === name) {
-      switchList(lists[0]);
+    if (filtered.length === 0) {
+      list.innerHTML = '<li class="empty-state">Keine Aufgaben vorhanden</li>';
+      return;
     }
-    saveLists();
-    // Optionally delete todos: localStorage.removeItem(getTodosKey().replace(currentList, name));
-    return true;
-  }
-  return false;
-}
 
-function switchList(name) {
-  if (lists.includes(name)) {
-    currentList = name;
-    loadUserTodos();
-    updateListUI();
-  }
-}
+    filtered.forEach((todo, idx) => {
+      const globalIndex = this.todos.indexOf(todo);
+      const li = document.createElement('li');
+      li.className = 'todo-item';
+      if (todo.completed) li.classList.add('completed');
+      
+      if (!todo.completed && todo.date === today) {
+        li.classList.add('due-today');
+      }
+      
+      // Überfällige Aufgaben markieren
+      if (!todo.completed && todo.date < today) {
+        li.classList.add('overdue');
+      }
 
-function updateListUI() {
-  const header = document.querySelector('.app-header h1');
-  if (header) {
-    header.textContent = `📝 Todo Liste – ${currentList}`;
-  }
-  updateListSelect();
-}
+      const checkbox = document.createElement('div');
+      checkbox.className = `checkbox ${todo.completed ? 'checked' : ''}`;
+      checkbox.onclick = () => this.toggleTodo(globalIndex);
 
-function save() {
-  try {
-    localStorage.setItem(getTodosKey(), JSON.stringify(todos));
-  } catch (e) {
-    console.error("Save failed:", e);
-  }
-}
+      const content = document.createElement('div');
+      content.className = 'todo-content';
+      content.onclick = () => this.openEditModal(globalIndex);
+      
+      const text = document.createElement('span');
+      text.className = 'todo-text';
+      text.textContent = todo.text;
+      
+      const date = document.createElement('span');
+      date.className = 'todo-date';
+      date.textContent = this.formatDate(todo.date);
 
-function loadTodos() {
-  try {
-    const stored = localStorage.getItem(getTodosKey());
-    if (stored) {
-      return JSON.parse(stored);
+      content.appendChild(text);
+      content.appendChild(date);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-todo-btn';
+      deleteBtn.innerHTML = '×';
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.deleteTodo(globalIndex);
+      };
+
+      li.appendChild(checkbox);
+      li.appendChild(content);
+      li.appendChild(deleteBtn);
+      list.appendChild(li);
+    });
+
+    this.updateStats();
+  },
+
+  renderGlobalTodos() {
+    const list = document.getElementById('todoList');
+    list.innerHTML = '';
+
+    if (this.globalTodos.length === 0) {
+      list.innerHTML = '<li class="empty-state">Keine Aufgaben vorhanden</li>';
+      return;
     }
-  } catch (e) {
-    console.error("Load failed:", e);
-  }
-  return [];
-}
 
-function loadUserTodos() {
-  todos = loadTodos().map(todo => ({
-    ...todo,
-    text: validateInput(todo.text),
-    date: validateDate(todo.date)
-  }));
-  render();
-}
+    const today = new Date().toISOString().split('T')[0];
 
-let currentFilter = "all";
-let editingIndex = -1;
+    this.globalTodos.forEach((todo, idx) => {
+      const li = document.createElement('li');
+      li.className = 'todo-item';
+      if (todo.completed) li.classList.add('completed');
+      
+      if (!todo.completed && todo.date === today) {
+        li.classList.add('due-today');
+      }
+      
+      // Überfällige Aufgaben markieren
+      if (!todo.completed && todo.date < today) {
+        li.classList.add('overdue');
+      }
 
-function sanitizeText(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
+      const checkbox = document.createElement('div');
+      checkbox.className = `checkbox ${todo.completed ? 'checked' : ''}`;
+      checkbox.onclick = () => this.toggleGlobalTodo(idx);
 
-function updateStats() {
-  if (!stats) return;
-  const activeTodos = todos.filter(todo => !todo.passive);
-  const total = activeTodos.length;
-  const completed = activeTodos.filter(todo => todo.completed).length;
-  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-  
-  stats.innerHTML = "";
-  const statsText = document.createElement("div");
-  statsText.className = "stats-text";
-  statsText.textContent = `${completed} von ${total} Todos erledigt (${percentage}%)`;
-  
-  const progressBar = document.createElement("div");
-  progressBar.className = "progress-bar";
-  const progressFill = document.createElement("div");
-  progressFill.className = "progress-fill";
-  progressFill.style.width = `${percentage}%`;
-  
-  progressBar.appendChild(progressFill);
-  stats.appendChild(statsText);
-  stats.appendChild(progressBar);
-}
+      const content = document.createElement('div');
+      content.className = 'todo-content';
+      content.onclick = () => this.openEditGlobalModal(idx);
+      
+      const text = document.createElement('span');
+      text.className = 'todo-text';
+      text.textContent = todo.text;
+      
+      const date = document.createElement('span');
+      date.className = 'todo-date';
+      date.textContent = `${this.formatDate(todo.date)} • ${todo.listName}`;
 
-function render() {
-  list.innerHTML = "";
-  let filtered = todos;
+      content.appendChild(text);
+      content.appendChild(date);
 
-  if (currentFilter === "today") {
-    const today = new Date().toISOString().split("T")[0];
-    filtered = todos.filter(todo => todo.date === today && !todo.passive);
-  } else if (currentFilter === "completed") {
-    filtered = todos.filter(todo => todo.completed && !todo.passive);
-  } else if (currentFilter === "passive") {
-    filtered = todos.filter(todo => todo.passive);
-  } else {
-    filtered = todos.filter(todo => !todo.passive);
-  }
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-todo-btn';
+      deleteBtn.innerHTML = '×';
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.deleteGlobalTodo(idx);
+      };
 
-  filtered.forEach((todo, localIndex) => {
-    const globalIndex = todos.indexOf(todo);
-    const li = document.createElement("li");
-    li.dataset.index = globalIndex;
-    if (todo.completed) li.classList.add("completed");
-    if (todo.passive) li.classList.add("passive");
+      li.appendChild(checkbox);
+      li.appendChild(content);
+      li.appendChild(deleteBtn);
+      list.appendChild(li);
+    });
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = todo.completed;
-    checkbox.onclick = function(e) {
-      e.stopPropagation();
-      todos[globalIndex].completed = !todos[globalIndex].completed;
-      save();
-      render();
+    this.updateGlobalStats();
+  },
+
+  formatDate(dateString) {
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (dateString === today.toISOString().split('T')[0]) {
+      return 'Heute';
+    } else if (dateString === tomorrow.toISOString().split('T')[0]) {
+      return 'Morgen';
+    } else {
+      return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+  },
+
+  updateStats() {
+    const active = this.todos.filter(t => !t.completed && !t.passive);
+    const completed = this.todos.filter(t => t.completed).length;
+    const total = active.length + completed;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    document.getElementById('statsText').textContent = `${completed} von ${total} erledigt`;
+    document.getElementById('progressPercent').textContent = `${percent}%`;
+    document.getElementById('progressFill').style.width = `${percent}%`;
+  },
+
+  updateGlobalStats() {
+    const completed = this.globalTodos.filter(t => t.completed).length;
+    const total = this.globalTodos.length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    document.getElementById('statsText').textContent = `${completed} von ${total} erledigt`;
+    document.getElementById('progressPercent').textContent = `${percent}%`;
+    document.getElementById('progressFill').style.width = `${percent}%`;
+  },
+
+  addTodo(text, date) {
+    if (!text.trim() || !date) return;
+    
+    if (this.containsForbiddenChars(text)) {
+      alert('Fehler: Die Zeichen <, >, & und | sind nicht erlaubt!');
+      return;
+    }
+    
+    this.todos.unshift({
+      text: this.sanitizeInput(text.trim()),
+      date: date,
+      completed: false,
+      passive: false
+    });
+    this.saveTodos();
+    this.renderTodos();
+    this.updateDashboard();
+  },
+
+  toggleTodo(index) {
+    this.todos[index].completed = !this.todos[index].completed;
+    this.saveTodos();
+    this.renderTodos();
+    this.updateDashboard();
+  },
+
+  toggleGlobalTodo(globalIndex) {
+    const todoInfo = this.globalTodoIndices[globalIndex];
+    const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${todoInfo.listName}`) || '[]');
+    listTodos[todoInfo.index].completed = !listTodos[todoInfo.index].completed;
+    localStorage.setItem(`todo_lists_${todoInfo.listName}`, JSON.stringify(listTodos));
+    
+    if (this.globalViewType === 'all') {
+      this.showAllTodos();
+    } else if (this.globalViewType === 'today') {
+      this.showTodayTodos();
+    } else if (this.globalViewType === 'completed') {
+      this.showCompletedTodos();
+    }
+    this.updateDashboard();
+  },
+
+  deleteTodo(index) {
+    if (confirm('Aufgabe löschen?')) {
+      this.todos.splice(index, 1);
+      this.saveTodos();
+      this.renderTodos();
+      this.updateDashboard();
+    }
+  },
+
+  deleteGlobalTodo(globalIndex) {
+    if (confirm('Aufgabe löschen?')) {
+      const todoInfo = this.globalTodoIndices[globalIndex];
+      const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${todoInfo.listName}`) || '[]');
+      listTodos.splice(todoInfo.index, 1);
+      localStorage.setItem(`todo_lists_${todoInfo.listName}`, JSON.stringify(listTodos));
+      
+      if (this.globalViewType === 'all') {
+        this.showAllTodos();
+      } else if (this.globalViewType === 'today') {
+        this.showTodayTodos();
+      } else if (this.globalViewType === 'completed') {
+        this.showCompletedTodos();
+      }
+      this.updateDashboard();
+    }
+  },
+
+  openEditModal(index) {
+    this.editingIndex = index;
+    const todo = this.todos[index];
+    
+    document.getElementById('editText').value = todo.text;
+    document.getElementById('editDate').value = todo.date;
+    document.getElementById('editModal').style.display = 'block';
+    
+    setTimeout(() => document.getElementById('editText').focus(), 100);
+  },
+
+  openEditGlobalModal(globalIndex) {
+    this.editingIndex = globalIndex;
+    const todo = this.globalTodos[globalIndex];
+    
+    document.getElementById('editText').value = todo.text;
+    document.getElementById('editDate').value = todo.date;
+    document.getElementById('editModal').style.display = 'block';
+    
+    setTimeout(() => document.getElementById('editText').focus(), 100);
+  },
+
+  closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    this.editingIndex = null;
+  },
+
+  saveEdit() {
+    if (this.editingIndex === null) return;
+    
+    const text = document.getElementById('editText').value.trim();
+    const date = document.getElementById('editDate').value;
+    
+    if (!text || !date) {
+      alert('Bitte Text und Datum eingeben!');
+      return;
+    }
+    
+    if (this.containsForbiddenChars(text)) {
+      alert('Fehler: Die Zeichen <, >, & und | sind nicht erlaubt!');
+      return;
+    }
+    
+    if (this.isGlobalView) {
+      const todoInfo = this.globalTodoIndices[this.editingIndex];
+      const listTodos = JSON.parse(localStorage.getItem(`todo_lists_${todoInfo.listName}`) || '[]');
+      listTodos[todoInfo.index].text = this.sanitizeInput(text);
+      listTodos[todoInfo.index].date = date;
+      localStorage.setItem(`todo_lists_${todoInfo.listName}`, JSON.stringify(listTodos));
+      
+      if (this.globalViewType === 'all') {
+        this.showAllTodos();
+      } else if (this.globalViewType === 'today') {
+        this.showTodayTodos();
+      } else if (this.globalViewType === 'completed') {
+        this.showCompletedTodos();
+      }
+    } else {
+      this.todos[this.editingIndex].text = this.sanitizeInput(text);
+      this.todos[this.editingIndex].date = date;
+      this.saveTodos();
+      this.renderTodos();
+    }
+    
+    this.updateDashboard();
+    this.closeEditModal();
+  },
+
+  updateFilterButtons(activeFilter) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.filter === activeFilter);
+    });
+  },
+
+  setupEventListeners() {
+    document.getElementById('backBtn').onclick = () => this.showDashboard();
+    
+    document.getElementById('addListBtn').onclick = () => {
+      const name = prompt('Name der neuen Liste:');
+      if (name) {
+        if (this.containsForbiddenChars(name)) {
+          alert('Fehler: Die Zeichen <, >, & und | sind nicht erlaubt!');
+          return;
+        }
+        if (this.createList(name)) {
+          this.updateDashboard();
+        }
+      }
     };
 
-    let textElement;
-    if (globalIndex === editingIndex) {
-      const editContainer = document.createElement("div");
-      editContainer.style.display = "flex";
-      editContainer.style.gap = "0.75rem";
-      editContainer.style.alignItems = "center";
-      
-      const textInput = document.createElement("input");
-      textInput.type = "text";
-      textInput.value = todo.text;
-      textInput.className = "edit-input";
-      textInput.style.flex = "1";
-      
-      const dateInput = document.createElement("input");
-      dateInput.type = "date";
-      dateInput.value = todo.date;
-      dateInput.className = "edit-input-date";
-      
-      const saveEdit = () => {
-        const newText = validateInput(textInput.value);
-        const newDate = validateDate(dateInput.value);
-        if (newText.trim() && newDate) {
-          todos[editingIndex].text = newText;
-          todos[editingIndex].date = newDate;
-          editingIndex = -1;
-          save();
-          render();
+    document.getElementById('deleteListBtn').onclick = () => {
+      if (this.currentList !== 'Standard' && !this.isGlobalView && confirm('Liste löschen?')) {
+        if (this.deleteList(this.currentList)) {
+          this.showDashboard();
+        }
+      }
+    };
+
+    document.getElementById('addTodoBtn').onclick = () => {
+      if (this.isGlobalView) {
+        alert('Bitte zuerst eine Liste auswählen!');
+        return;
+      }
+      const text = document.getElementById('todoText').value;
+      const date = document.getElementById('todoDate').value;
+      if (text && date) {
+        this.addTodo(text, date);
+        document.getElementById('todoText').value = '';
+      } else {
+        alert('Bitte Text und Datum eingeben!');
+      }
+    };
+
+    document.getElementById('todoText').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('addTodoBtn').click();
+      }
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (this.isGlobalView) {
+          return;
         } else {
-          alert("Ungültiger Text oder Datum!");
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.currentFilter = btn.dataset.filter;
+          this.renderTodos();
         }
       };
-      
-      textInput.onblur = saveEdit;
-      textInput.onkeypress = (e) => { if (e.key === "Enter") saveEdit(); };
-      dateInput.onblur = saveEdit;
-      dateInput.onkeypress = (e) => { if (e.key === "Enter") saveEdit(); };
-      
-      textInput.focus();
-      textInput.select();
-      
-      editContainer.appendChild(textInput);
-      editContainer.appendChild(dateInput);
-      textElement = editContainer;
-    } else {
-      const span = document.createElement("span");
-      span.textContent = sanitizeText(`${todo.text} (${todo.date})${todo.passive ? ' [PASSIV]' : ''}`);
-      textElement = span;
-    }
-
-    const actions = document.createElement("div");
-    actions.className = "todo-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.className = "edit";
-    editBtn.textContent = "✏️";
-    editBtn.onclick = function(e) {
-      e.stopPropagation();
-      editingIndex = globalIndex;
-      render();
-    };
-
-    const passiveBtn = document.createElement("button");
-    passiveBtn.className = "passive-btn";
-    passiveBtn.textContent = todo.passive ? "🔄" : "⏸️";
-    passiveBtn.onclick = function(e) {
-      e.stopPropagation();
-      togglePassive(globalIndex);
-    };
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete";
-    deleteBtn.textContent = "🗑️";
-    deleteBtn.onclick = function(e) {
-      e.stopPropagation();
-      deleteTodo(globalIndex);
-    };
-
-    actions.appendChild(editBtn);
-    actions.appendChild(passiveBtn);
-    actions.appendChild(deleteBtn);
-
-    li.appendChild(checkbox);
-    li.appendChild(textElement);
-    li.appendChild(actions);
-    list.appendChild(li);
-  });
-
-  updateStats();
-}
-
-// Deprecated prompt-based editTodo, replaced with inline editing
-
-function togglePassive(index) {
-  todos[index].passive = !todos[index].passive;
-  save();
-  render();
-}
-
-function deleteTodo(index) {
-  if (confirm("Todo löschen?")) {
-    todos.splice(index, 1);
-    save();
-    render();
-  }
-}
-
-if (form) form.addEventListener("submit", e => {
-  e.preventDefault();
-  const text = validateInput(todoText.value);
-  const date = validateDate(todoDate.value);
-  if (text && date) {
-    todos.unshift({text, date, completed: false, passive: false});
-    form.reset();
-    save();
-    render();
-  } else {
-    alert("Text und gültiges Datum eingeben!");
-  }
-});
-
-function initFilters() {
-  [filterAll, filterToday, filterCompleted, filterPassive].forEach((btn, i) => {
-    if (btn) btn.addEventListener('click', () => {
-      currentFilter = ['all', 'today', 'completed', 'passive'][i];
-      [filterAll, filterToday, filterCompleted, filterPassive].forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      render();
     });
-  });
-}
 
-initFilters();
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      const term = e.target.value.toLowerCase();
+      document.querySelectorAll('.list-card').forEach(card => {
+        const name = card.querySelector('.list-name').textContent.toLowerCase();
+        card.style.display = name.includes(term) ? 'flex' : 'none';
+      });
+    });
 
-loadLists();
-loadUserTodos();
-updateListUI();
-render();
-
-// List UI event listeners
-const listSelect = document.getElementById('listSelect');
-if (listSelect) {
-  listSelect.onchange = (e) => switchList(e.target.value);
-}
-
-const createListBtn = document.getElementById('createListBtn');
-if (createListBtn) {
-  createListBtn.onclick = () => {
-    const nameInput = document.getElementById('newListName');
-    if (createList(nameInput.value)) {
-      nameInput.value = '';
-    } else {
-      alert('Listenname ungültig oder bereits vorhanden!');
-    }
-  };
-}
-
-const deleteListBtn = document.getElementById('deleteListBtn');
-if (deleteListBtn) {
-  deleteListBtn.onclick = () => {
-    if (deleteList(currentList)) {
-      alert('Liste gelöscht');
-    } else {
-      alert('Kann Standard-Liste nicht löschen oder keine andere Liste vorhanden!');
-    }
-  };
-}
-
-function updateListSelect() {
-  const select = document.getElementById('listSelect');
-  if (select) {
-    select.innerHTML = lists.map(name => `<option value="${name}" ${name === currentList ? 'selected' : ''}>${name}</option>`).join('');
+    document.getElementById('editText').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.saveEdit();
+    });
   }
-}
+};
 
-// Call on load and after changes
-updateListSelect();
+document.addEventListener('DOMContentLoaded', () => app.init());

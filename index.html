@@ -2,42 +2,153 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="css/style.css">
-  <title>Todo Liste</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="css/style.css">
+  <title>Todo List</title>
 </head>
 <body>
 
-<div id="todoApp" class="app todo-app">
-<div class="app-header">
-    <h1 id="listTitle">📝 Todo Liste – Standard</h1>
-    <div class="list-controls">
-      <select id="listSelect"></select>
-      <input id="newListName" placeholder="Neue Liste" maxlength="50">
-      <button id="createListBtn">Neue Liste</button>
-      <button id="deleteListBtn" class="delete">🗑️</button>
+<div id="todoApp" class="app">
+  <!-- DASHBOARD -->
+  <div id="dashboardView" class="dashboard">
+    <div class="header">
+      <h1>Todo List</h1>
+      <button class="settings-btn">⋯</button>
+    </div>
+
+    <div class="stats-container">
+      <!-- Alle -->
+      <div class="stat-card" onclick="app.showAllTodos()">
+        <div class="stat-left">
+          <div class="icon-box blue">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <span class="stat-label">Alle</span>
+        </div>
+        <span class="stat-number" id="countAlle">0</span>
+      </div>
+
+      <!-- Heute -->
+      <div class="stat-card" onclick="app.showTodayTodos()">
+        <div class="stat-left">
+          <div class="icon-box yellow">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+          </div>
+          <span class="stat-label">Heute</span>
+        </div>
+        <span class="stat-number" id="countHeute">0</span>
+      </div>
+
+      <!-- Erledigt -->
+      <div class="stat-card" onclick="app.showCompletedTodos()">
+        <div class="stat-left">
+          <div class="icon-box green">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <span class="stat-label">Erledigt</span>
+        </div>
+        <span class="stat-number" id="countErledigt">0</span>
+      </div>
+    </div>
+
+    <div class="lists-section">
+      <h2 class="section-title">Meine Listen</h2>
+      <div class="lists-grid" id="listsGrid"></div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="search-box">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.35-4.35"></path>
+        </svg>
+        <input type="text" placeholder="Suchen" id="searchInput">
+      </div>
+      <button class="add-btn" id="addListBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
     </div>
   </div>
 
-  <form id="todoForm">
-    <input id="todoText" placeholder="Was ist zu tun?" required>
-    <input id="todoDate" type="date" required>
-    <button type="submit">Hinzufügen</button>
-  </form>
+  <!-- TODO LIST VIEW -->
+  <div id="listView" class="list-view" style="display: none;">
+    <div class="list-header">
+      <button class="back-btn" id="backBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <h1 id="listTitle">Liste</h1>
+      <button class="delete-btn" id="deleteListBtn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        </svg>
+      </button>
+    </div>
 
-  <div id="stats"></div>
+    <div class="list-stats">
+      <div class="progress-info">
+        <span id="statsText">0 von 0 erledigt</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+    </div>
 
-  <div class="filters">
-    <button id="filterAll" class="active">Alle</button>
-    <button id="filterToday">Heute</button>
-    <button id="filterCompleted">Erledigt</button>
-    <button id="filterPassive">Passiv</button>
+    <div class="filters">
+      <button class="filter-btn active" data-filter="all">Alle</button>
+      <button class="filter-btn" data-filter="today">Heute</button>
+      <button class="filter-btn" data-filter="completed">Erledigt</button>
+    </div>
+
+    <ul class="todo-list" id="todoList"></ul>
+
+    <div class="add-todo-container">
+      <input type="text" id="todoText" placeholder="Neue Aufgabe">
+      <input type="date" id="todoDate">
+      <button class="add-todo-btn" id="addTodoBtn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
   </div>
 
-  <ul id="todoList"></ul>
+  <!-- EDIT MODAL -->
+  <div id="editModal" class="modal" style="display: none;">
+    <div class="modal-overlay" onclick="app.closeEditModal()"></div>
+    <div class="modal-content">
+      <h2>Aufgabe bearbeiten</h2>
+      <input type="text" id="editText" placeholder="Aufgabe">
+      <input type="date" id="editDate">
+      <div class="modal-buttons">
+        <button class="modal-cancel" onclick="app.closeEditModal()">Abbrechen</button>
+        <button class="modal-save" onclick="app.saveEdit()">Speichern</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="js/script.js"></script>
-
 </body>
 </html>
